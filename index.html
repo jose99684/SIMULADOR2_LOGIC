@@ -1,618 +1,287 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Simulador Lógico — F = (Ā·B̄·C) + (Ā·B·C) + (A·B·C)</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab Lógico Pro - Simulación Dinámica</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&family=Montserrat:wght@800&display=swap');
 
-:root {
-  --bg: #0d1117;
-  --panel: #161b27;
-  --canvas: #1a2035;
-  --border: #252f4a;
-  --cA: #00b4ff;
-  --cB: #ff4466;
-  --cC: #00e676;
-  --cNA: #7b61ff;
-  --cNB: #ff9933;
-  --cAnd1: #00e5ff;
-  --cAnd2: #ff6ec7;
-  --cAnd3: #69ff47;
-  --cOR: #ffd740;
-  --dim: #3a4a6a;
-  --text: #c0cce0;
-}
+        body { 
+            background-color: #0f172a; 
+            color: white; 
+            font-family: 'Fira Code', monospace;
+            overflow-x: hidden;
+        }
 
-* { box-sizing:border-box; margin:0; padding:0; }
+        /* Fondo tecnológico con rejilla brillante */
+        .grid-bg {
+            background-color: #e2e8f0;
+            background-image: 
+                linear-gradient(rgba(203, 213, 225, 0.5) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(203, 213, 225, 0.5) 1px, transparent 1px);
+            background-size: 30px 30px;
+            border-radius: 15px;
+            position: relative;
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.1), 0 0 20px rgba(0,0,0,0.3);
+        }
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Share Tech Mono', monospace;
-  min-height: 100vh;
-}
+        /* Estilos de cables y señales */
+        .wire { fill: none; stroke-width: 4; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); stroke-linecap: round; }
+        .high { stroke: #ef4444; filter: drop-shadow(0 0 8px #ef4444); stroke-dasharray: 8; animation: moveWire 1s linear infinite; }
+        .low { stroke: #2563eb; stroke-dasharray: none; opacity: 0.7; }
 
-header {
-  text-align:center; padding:16px 20px 10px;
-  border-bottom:1px solid var(--border);
-  background: rgba(13,17,23,0.95);
-}
-header h1 {
-  font-family:'Orbitron',sans-serif; font-weight:900;
-  font-size:clamp(0.85rem,2.5vw,1.3rem);
-  color:#00b4ff; text-shadow:0 0 16px #00b4ff; letter-spacing:3px;
-}
-header .eq { margin-top:4px; font-size:clamp(0.68rem,1.8vw,0.9rem); color:#ffd740; text-shadow:0 0 8px #ffd740; }
+        @keyframes moveWire {
+            to { stroke-dashoffset: -16; }
+        }
 
-.layout {
-  display:grid;
-  grid-template-columns:200px 1fr 240px;
-  gap:12px; padding:12px;
-  max-width:1300px; margin:0 auto;
-}
-@media(max-width:860px){ .layout{ grid-template-columns:1fr; } }
+        /* Burbujas de estado dinámicas */
+        .status-bubble {
+            font-size: 12px;
+            font-weight: bold;
+            paint-order: stroke;
+            stroke: #fff;
+            stroke-width: 3px;
+            transition: all 0.3s;
+        }
+        .bubble-high { fill: #ef4444; }
+        .bubble-low { fill: #2563eb; }
 
-.panel {
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:10px; padding:14px;
-}
-.panel-title {
-  font-family:'Orbitron',sans-serif;
-  font-size:0.58rem; letter-spacing:3px; color:#00b4ff;
-  text-transform:uppercase; border-bottom:1px solid var(--border);
-  padding-bottom:6px; margin-bottom:12px;
-}
+        .gate-body { fill: #f8fafc; stroke: #334155; stroke-width: 2.5; }
+        .gate-text { fill: #1e293b; font-size: 12px; font-weight: 800; pointer-events: none; }
 
-/* ── SWITCHES ── */
-.sw-block { display:flex; flex-direction:column; gap:14px; }
-.sw-item  { display:flex; flex-direction:column; gap:5px; }
-.sw-row   { display:flex; align-items:center; gap:10px; }
-
-.sw-name {
-  font-family:'Orbitron',sans-serif;
-  font-size:1.45rem; font-weight:900; width:24px; text-align:center;
-}
-
-.tog { position:relative; width:80px; height:38px; cursor:pointer; flex-shrink:0; }
-.tog input { display:none; }
-.tog-track {
-  position:absolute; inset:0; border-radius:19px;
-  transition: all 0.3s ease; overflow:hidden;
-}
-.tog-thumb {
-  position:absolute; top:4px; left:4px;
-  width:30px; height:30px; border-radius:50%;
-  transition: left 0.32s cubic-bezier(.4,0,.2,1);
-  display:flex; align-items:center; justify-content:center;
-  font-family:'Orbitron',sans-serif; font-weight:900; font-size:0.72rem;
-}
-.tog input:checked ~ .tog-track .tog-thumb { left:46px; }
-.tog-off,.tog-on {
-  position:absolute; top:50%; transform:translateY(-50%);
-  font-family:'Orbitron',sans-serif; font-size:0.48rem; font-weight:700;
-  letter-spacing:1px; pointer-events:none; transition:opacity 0.2s;
-}
-.tog-off { right:7px; }
-.tog-on  { left:7px; opacity:0; }
-.tog input:checked ~ .tog-track .tog-off { opacity:0; }
-.tog input:checked ~ .tog-track .tog-on  { opacity:1; }
-
-/* A = cyan */
-.sa .sw-name { color:#00b4ff; text-shadow:0 0 12px #00b4ff; }
-.sa .tog-track { background:#071828; border:2px solid #0a3050; }
-.sa .tog-thumb { background:linear-gradient(135deg,#0a3050,#1a5070); color:#3a8aaa; box-shadow:0 2px 8px #000; }
-.sa .tog-off { color:rgba(0,180,255,0.4); }
-.sa .tog input:checked ~ .tog-track { background:linear-gradient(90deg,#003560,#0097d0); border-color:#00b4ff; box-shadow:0 0 16px rgba(0,180,255,0.5); }
-.sa .tog input:checked ~ .tog-track .tog-thumb { background:linear-gradient(135deg,#00b4ff,#0080c0); color:#002a50; box-shadow:0 0 12px #00b4ff; }
-.sa .tog-on { color:rgba(255,255,255,0.9); }
-
-/* B = red */
-.sb .sw-name { color:#ff4466; text-shadow:0 0 12px #ff4466; }
-.sb .tog-track { background:#1c0810; border:2px solid #500020; }
-.sb .tog-thumb { background:linear-gradient(135deg,#500020,#800030); color:#cc4466; box-shadow:0 2px 8px #000; }
-.sb .tog-off { color:rgba(255,68,102,0.4); }
-.sb .tog input:checked ~ .tog-track { background:linear-gradient(90deg,#600020,#cc0040); border-color:#ff4466; box-shadow:0 0 16px rgba(255,68,102,0.5); }
-.sb .tog input:checked ~ .tog-track .tog-thumb { background:linear-gradient(135deg,#ff4466,#cc0044); color:#400010; box-shadow:0 0 12px #ff4466; }
-.sb .tog-on { color:rgba(255,255,255,0.9); }
-
-/* C = green */
-.sc .sw-name { color:#00e676; text-shadow:0 0 12px #00e676; }
-.sc .tog-track { background:#061a0e; border:2px solid #0a4020; }
-.sc .tog-thumb { background:linear-gradient(135deg,#0a4020,#156030); color:#4a9060; box-shadow:0 2px 8px #000; }
-.sc .tog-off { color:rgba(0,230,118,0.4); }
-.sc .tog input:checked ~ .tog-track { background:linear-gradient(90deg,#003a18,#00b060); border-color:#00e676; box-shadow:0 0 16px rgba(0,230,118,0.5); }
-.sc .tog input:checked ~ .tog-track .tog-thumb { background:linear-gradient(135deg,#00e676,#00a850); color:#002810; box-shadow:0 0 12px #00e676; }
-.sc .tog-on { color:rgba(255,255,255,0.9); }
-
-.sv { font-family:'Orbitron',sans-serif; font-weight:900; font-size:1.3rem; min-width:26px; text-align:center; transition:all 0.3s; }
-.sa .sv.on  { color:#00b4ff; text-shadow:0 0 10px #00b4ff; }
-.sa .sv.off { color:#0a3050; }
-.sb .sv.on  { color:#ff4466; text-shadow:0 0 10px #ff4466; }
-.sb .sv.off { color:#500020; }
-.sc .sv.on  { color:#00e676; text-shadow:0 0 10px #00e676; }
-.sc .sv.off { color:#0a4020; }
-
-.neg-info { font-size:0.6rem; color:var(--dim); margin-left:34px; display:flex; gap:6px; align-items:center; }
-.neg-pill { padding:2px 7px; border-radius:4px; border:1px solid var(--border); font-size:0.6rem; transition:all 0.3s; }
-.neg-pill.lit { color:#ff9933; border-color:#ff9933; text-shadow:0 0 5px #ff9933; box-shadow:0 0 6px rgba(255,153,51,0.3); }
-
-/* Probe */
-.probe { background:#060a12; border:1px solid var(--border); border-radius:8px; margin-top:12px; padding:12px; text-align:center; }
-.probe-label { font-family:'Orbitron',sans-serif; font-size:0.52rem; letter-spacing:3px; color:var(--dim); margin-bottom:6px; }
-.probe-val { font-family:'Orbitron',sans-serif; font-weight:900; font-size:2.8rem; transition:all 0.35s; }
-.probe-val.one  { color:#00e676; text-shadow:0 0 20px #00e676,0 0 40px #00e676; }
-.probe-val.zero { color:#ff4466; text-shadow:0 0 20px #ff4466; }
-.probe-desc { font-size:0.58rem; color:var(--dim); margin-top:4px; min-height:14px; }
-
-.mterms { margin-top:10px; display:flex; flex-direction:column; gap:5px; }
-.mt {
-  display:flex; justify-content:space-between; align-items:center; gap:6px;
-  padding:4px 9px; border-radius:5px; border:1px solid var(--border);
-  font-size:0.62rem; transition:all 0.3s;
-}
-.mt.on { border-color:#00e676; background:rgba(0,230,118,0.07); color:#00e676; box-shadow:0 0 6px rgba(0,230,118,0.2); }
-.mt-dot { width:7px; height:7px; border-radius:50%; background:var(--dim); transition:all 0.3s; flex-shrink:0; }
-.mt.on .mt-dot { background:#00e676; box-shadow:0 0 5px #00e676; }
-
-/* ── Canvas ── */
-.canvas-wrap {
-  background: var(--canvas);
-  border:1px solid var(--border);
-  border-radius:10px; overflow:hidden; position:relative;
-  background-image: radial-gradient(circle, rgba(140,180,255,0.12) 1px, transparent 1px);
-  background-size:20px 20px;
-}
-.circuit-svg { display:block; width:100%; height:auto; }
-
-/* Wires */
-.w { fill:none; stroke-width:2.8; stroke-linecap:square; stroke-linejoin:miter; transition:stroke 0.35s,filter 0.35s,opacity 0.35s; }
-.w.off { opacity:0.55; }
-.w.on  { opacity:1; }
-
-.wA.off  { stroke:#0a2040; }  .wA.on  { stroke:#00b4ff; filter:drop-shadow(0 0 3px #00b4ff); }
-.wB.off  { stroke:#2a0815; }  .wB.on  { stroke:#ff4466; filter:drop-shadow(0 0 3px #ff4466); }
-.wC.off  { stroke:#063018; }  .wC.on  { stroke:#00e676; filter:drop-shadow(0 0 3px #00e676); }
-.wNA.off { stroke:#1a1040; }  .wNA.on { stroke:#7b61ff; filter:drop-shadow(0 0 3px #7b61ff); }
-.wNB.off { stroke:#2a1a00; }  .wNB.on { stroke:#ff9933; filter:drop-shadow(0 0 3px #ff9933); }
-.wT1.off { stroke:#052a30; }  .wT1.on { stroke:#00e5ff; filter:drop-shadow(0 0 3px #00e5ff); }
-.wT2.off { stroke:#2a0820; }  .wT2.on { stroke:#ff6ec7; filter:drop-shadow(0 0 3px #ff6ec7); }
-.wT3.off { stroke:#0a2808; }  .wT3.on { stroke:#69ff47; filter:drop-shadow(0 0 3px #69ff47); }
-.wF.off  { stroke:#2a2000; }  .wF.on  { stroke:#ffd740; filter:drop-shadow(0 0 4px #ffd740); }
-
-/* Gate bodies */
-.gb { transition:stroke 0.3s,fill 0.3s,filter 0.3s; stroke-width:2; }
-.gb.off { stroke:#2a3a5a; fill:#111828; }
-.gb.on  {}
-.gNA.on  { stroke:#7b61ff; fill:rgba(123,97,255,0.08); filter:drop-shadow(0 0 5px #7b61ff); }
-.gNB.on  { stroke:#ff9933; fill:rgba(255,153,51,0.08); filter:drop-shadow(0 0 5px #ff9933); }
-.gT1.on  { stroke:#00e5ff; fill:rgba(0,229,255,0.08); filter:drop-shadow(0 0 5px #00e5ff); }
-.gT2.on  { stroke:#ff6ec7; fill:rgba(255,110,199,0.08); filter:drop-shadow(0 0 5px #ff6ec7); }
-.gT3.on  { stroke:#69ff47; fill:rgba(105,255,71,0.08); filter:drop-shadow(0 0 5px #69ff47); }
-.gOR.on  { stroke:#ffd740; fill:rgba(255,215,64,0.08); filter:drop-shadow(0 0 6px #ffd740); }
-
-.nc { fill:none; stroke-width:2; transition:stroke 0.3s,filter 0.3s; }
-.nc.off { stroke:#2a3a5a; }
-.ncA.on { stroke:#7b61ff; filter:drop-shadow(0 0 4px #7b61ff); }
-.ncB.on { stroke:#ff9933; filter:drop-shadow(0 0 4px #ff9933); }
-
-/* Signal dots */
-.sd { transition:fill 0.3s,filter 0.3s; }
-.sd.off { fill:#253050; }
-.sd.on  {}
-.sdA.on  { fill:#00b4ff; filter:drop-shadow(0 0 5px #00b4ff); }
-.sdB.on  { fill:#ff4466; filter:drop-shadow(0 0 5px #ff4466); }
-.sdC.on  { fill:#00e676; filter:drop-shadow(0 0 5px #00e676); }
-.sdNA.on { fill:#7b61ff; filter:drop-shadow(0 0 5px #7b61ff); }
-.sdNB.on { fill:#ff9933; filter:drop-shadow(0 0 5px #ff9933); }
-.sdT1.on { fill:#00e5ff; filter:drop-shadow(0 0 5px #00e5ff); }
-.sdT2.on { fill:#ff6ec7; filter:drop-shadow(0 0 5px #ff6ec7); }
-.sdT3.on { fill:#69ff47; filter:drop-shadow(0 0 5px #69ff47); }
-.sdF.on  { fill:#ffd740; filter:drop-shadow(0 0 6px #ffd740); }
-
-.vl { font-family:'Orbitron',sans-serif; font-size:8px; text-anchor:middle; transition:fill 0.3s; }
-.vl.off { fill:#3a4a6a; }
-.vl.on  { fill:#ffffff; }
-.gt  { font-family:'Orbitron',sans-serif; font-size:6.5px; fill:#4a6080; text-anchor:middle; }
-.gt2 { font-family:'Orbitron',sans-serif; font-size:5px; fill:#3a5070; text-anchor:middle; }
-
-/* Truth table */
-.tt { width:100%; border-collapse:collapse; font-size:0.7rem; }
-.tt th { font-family:'Orbitron',sans-serif; font-size:0.56rem; color:#00b4ff; padding:6px 3px; text-align:center; border-bottom:1px solid var(--border); }
-.tt td { padding:5px 3px; text-align:center; border-bottom:1px solid rgba(37,48,74,0.4); transition:all 0.3s; }
-.tt tr.hl td { background:rgba(0,180,255,0.08); color:#00b4ff; }
-.tt tr.hl td:last-child { color:#00e676; font-weight:700; }
-.tt tr.hl td:last-child.z { color:#ff4466; }
-.canon { margin-top:12px; font-size:0.6rem; color:var(--dim); line-height:1.7; }
-.canon b { font-family:'Orbitron',sans-serif; font-size:0.56rem; color:#00b4ff; letter-spacing:2px; display:block; margin-bottom:4px; }
-
-@keyframes pgn { 0%{box-shadow:0 0 0 0 rgba(0,230,118,.7)} 70%{box-shadow:0 0 0 14px transparent} 100%{} }
-@keyframes pgr { 0%{box-shadow:0 0 0 0 rgba(255,68,102,.7)} 70%{box-shadow:0 0 0 14px transparent} 100%{} }
-.pg { animation:pgn 0.5s ease-out; }
-.pr { animation:pgr 0.5s ease-out; }
-</style>
+        .btn-logic {
+            transition: all 0.2s;
+            cursor: pointer;
+            border: 4px solid #fff;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.2);
+        }
+        .btn-logic:active { transform: translateY(4px); box-shadow: none; }
+        
+        .panel-glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+    </style>
 </head>
-<body>
+<body class="p-4 md:p-6">
 
-<header>
-  <h1>⚡ SIMULADOR DE CIRCUITO LÓGICO</h1>
-  <div class="eq">F = (Ā·B̄·C) + (Ā·B·C) + (A·B·C) &nbsp;=&nbsp;</div>
-</header>
+    <div class="max-w-7xl mx-auto space-y-6">
+        <!-- HEADER COLORIDO -->
+        <div class="flex flex-col md:flex-row justify-between items-center bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-6 rounded-2xl shadow-2xl border-b-8 border-black/20">
+            <div>
+                <h1 class="text-3xl font-black tracking-tight text-white mb-1" style="font-family: 'Montserrat', sans-serif;">LABORATORIO LÓGICO VIRTUAL</h1>
+                <p class="text-xs font-bold text-blue-100 opacity-80 uppercase tracking-widest">Análisis Dinámico de Ecuación: F = (A'B'C) + (A'BC) + (ABC)</p>
+            </div>
+            <div id="sim-status" class="mt-4 md:mt-0 px-4 py-2 bg-white text-blue-700 font-black rounded-full animate-pulse shadow-lg">
+                SISTEMA ACTIVO
+            </div>
+        </div>
 
-<div class="layout">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- PANEL DE CONTROL IZQUIERDO -->
+            <div class="lg:col-span-3 space-y-4">
+                <div class="panel-glass p-6 rounded-2xl border-l-8 border-red-500">
+                    <h2 class="text-sm font-black mb-6 text-red-400 uppercase tracking-tighter italic">Entradas de Señal</h2>
+                    <div class="space-y-8" id="input-controls">
+                        <!-- A -->
+                        <div class="flex items-center justify-between">
+                            <span class="text-2xl font-black">A</span>
+                            <div onclick="toggleVar('A')" id="btn-A" class="btn-logic w-16 h-16 rounded-xl bg-blue-600 flex items-center justify-center text-3xl font-black">0</div>
+                        </div>
+                        <!-- B -->
+                        <div class="flex items-center justify-between">
+                            <span class="text-2xl font-black">B</span>
+                            <div onclick="toggleVar('B')" id="btn-B" class="btn-logic w-16 h-16 rounded-xl bg-blue-600 flex items-center justify-center text-3xl font-black">0</div>
+                        </div>
+                        <!-- C -->
+                        <div class="flex items-center justify-between">
+                            <span class="text-2xl font-black">C</span>
+                            <div onclick="toggleVar('C')" id="btn-C" class="btn-logic w-16 h-16 rounded-xl bg-blue-600 flex items-center justify-center text-3xl font-black">0</div>
+                        </div>
+                    </div>
+                </div>
 
-<!-- LEFT: SWITCHES -->
-<div class="panel">
-  <div class="panel-title">Entradas</div>
-  <div class="sw-block">
+                <div class="panel-glass p-6 rounded-2xl border-l-8 border-yellow-400 text-center">
+                    <h2 class="text-[10px] font-bold text-slate-400 mb-2">RESULTADO FINAL (F)</h2>
+                    <div id="display-f" class="text-7xl font-black text-blue-500 transition-all duration-300">0</div>
+                </div>
+            </div>
 
-    <div class="sw-item sa">
-      <div class="sw-row">
-        <span class="sw-name">A</span>
-        <label class="tog">
-          <input type="checkbox" id="swA" onchange="update()">
-          <div class="tog-track">
-            <span class="tog-on">ON</span><span class="tog-off">OFF</span>
-            <div class="tog-thumb">1</div>
-          </div>
-        </label>
-        <span class="sv off" id="valA">0</span>
-      </div>
-      <div class="neg-info">NOT A → <span class="neg-pill" id="negA">Ā=1</span></div>
+            <!-- AREA DE CIRCUITO (CENTRO) -->
+            <div class="lg:col-span-6 grid-bg p-4 min-h-[600px] border-4 border-slate-300 overflow-hidden shadow-inner">
+                <div class="absolute top-4 left-4 flex gap-2">
+                    <div class="w-3 h-3 rounded-full bg-red-400"></div>
+                    <div class="w-3 h-3 rounded-full bg-yellow-400"></div>
+                    <div class="w-3 h-3 rounded-full bg-green-400"></div>
+                </div>
+                <svg id="schematic" viewBox="0 0 800 600" class="w-full h-full">
+                    <!-- El contenido se genera dinámicamente -->
+                </svg>
+            </div>
+
+            <!-- TABLA Y DATOS (DERECHA) -->
+            <div class="lg:col-span-3 space-y-4">
+                <div class="panel-glass p-4 rounded-2xl border-t-4 border-indigo-500 h-[350px] flex flex-col">
+                    <h2 class="text-xs font-black text-center mb-4 text-indigo-300 italic">TABLA DE VERDAD ANALÍTICA</h2>
+                    <div class="overflow-y-auto flex-grow custom-scroll">
+                        <table class="w-full text-xs text-center border-collapse">
+                            <thead class="bg-indigo-900/50 text-indigo-200 sticky top-0">
+                                <tr>
+                                    <th class="p-2 border border-white/5">A</th>
+                                    <th class="p-2 border border-white/5">B</th>
+                                    <th class="p-2 border border-white/5">C</th>
+                                    <th class="p-2 border border-white/5 bg-indigo-600">F</th>
+                                </tr>
+                            </thead>
+                            <tbody id="truth-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-black/80 p-6 rounded-2xl border-2 border-slate-700 flex flex-col items-center justify-center">
+                    <p class="text-[10px] text-emerald-500 font-bold mb-2">MONITOR DE SALIDA</p>
+                    <div class="flex gap-4">
+                        <div class="flex flex-col items-center">
+                            <div id="led-f" class="w-12 h-12 rounded-full bg-blue-900 border-4 border-white/20 transition-all duration-300"></div>
+                            <span class="text-[10px] mt-2 text-slate-500">PROBE_OUT</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div class="sw-item sb">
-      <div class="sw-row">
-        <span class="sw-name">B</span>
-        <label class="tog">
-          <input type="checkbox" id="swB" onchange="update()">
-          <div class="tog-track">
-            <span class="tog-on">ON</span><span class="tog-off">OFF</span>
-            <div class="tog-thumb">1</div>
-          </div>
-        </label>
-        <span class="sv off" id="valB">0</span>
-      </div>
-      <div class="neg-info">NOT B → <span class="neg-pill" id="negB">B̄=1</span></div>
-    </div>
+    <script>
+        let state = { A: 0, B: 0, C: 1 };
 
-    <div class="sw-item sc">
-      <div class="sw-row">
-        <span class="sw-name">C</span>
-        <label class="tog">
-          <input type="checkbox" id="swC" onchange="update()">
-          <div class="tog-track">
-            <span class="tog-on">ON</span><span class="tog-off">OFF</span>
-            <div class="tog-thumb">1</div>
-          </div>
-        </label>
-        <span class="sv off" id="valC">0</span>
-      </div>
-      <div class="neg-info" style="color:#263650">(sin negación)</div>
-    </div>
+        function toggleVar(v) {
+            state[v] = state[v] === 0 ? 1 : 0;
+            const btn = document.getElementById(`btn-${v}`);
+            btn.innerText = state[v];
+            btn.className = `btn-logic w-16 h-16 rounded-xl border-4 border-white flex items-center justify-center text-3xl font-black ${state[v] ? 'bg-red-600' : 'bg-blue-600'}`;
+            update();
+        }
 
-  </div>
+        function calculateLogic() {
+            const { A, B, C } = state;
+            // Ecuación: F = (-A*-B*C) + (-A*B*C) + (A*B*C)
+            const t1 = (!A && !B && C);
+            const t2 = (!A && B && C);
+            const t3 = (A && B && C);
+            const f = (t1 || t2 || t3) ? 1 : 0;
+            return { f, t1, t2, t3, invA: !A ? 1 : 0, invB: !B ? 1 : 0 };
+        }
 
-  <div class="probe">
-    <div class="probe-label">OUTPUT PROBE (F)</div>
-    <div class="probe-val zero" id="outBig">0</div>
-    <div class="probe-desc" id="outDesc">Ningún mintérmino activo</div>
-  </div>
+        function drawSchematic() {
+            const svg = document.getElementById('schematic');
+            const { A, B, C } = state;
+            const res = calculateLogic();
 
-  <div class="mterms">
-    <div style="font-family:'Orbitron',sans-serif;font-size:0.56rem;color:#00b4ff;letter-spacing:2px;margin-top:8px">MINTÉRMINOS</div>
-    <div class="mt" id="m0"><div class="mt-dot"></div><span>Ā·B̄·C</span><span id="m0v">= 0</span></div>
-    <div class="mt" id="m1"><div class="mt-dot"></div><span>Ā·B·C</span><span id="m1v">= 0</span></div>
-    <div class="mt" id="m2"><div class="mt-dot"></div><span>A·B·C</span><span id="m2v">= 0</span></div>
-  </div>
-</div>
+            svg.innerHTML = `
+                <defs>
+                    <symbol id="gate-not" viewBox="0 0 50 50">
+                        <path d="M 10 10 L 10 40 L 35 25 Z" class="gate-body"/>
+                        <circle cx="40" cy="25" r="4" class="gate-body"/>
+                    </symbol>
+                    <symbol id="gate-and" viewBox="0 0 60 50">
+                        <path d="M 10 5 L 10 45 L 30 45 Q 55 45 55 25 Q 55 5 30 5 Z" class="gate-body"/>
+                    </symbol>
+                    <symbol id="gate-or" viewBox="0 0 60 50">
+                        <path d="M 10 5 Q 25 25 10 45 Q 40 45 55 25 Q 40 5 10 5 Z" class="gate-body"/>
+                    </symbol>
+                </defs>
 
-<!-- CENTER: CIRCUIT SVG -->
-<div class="canvas-wrap">
-<!--
-  ViewBox: 0 0 820 500
-  Signal rows:  A=75,  B=195,  C=325
-  NOT A output: x=195
-  NOT B output: x=195
-  AND1 center:  x=375, y=130  (Ā·B̄·C: inputs at y=95,130,165)
-  AND2 center:  x=375, y=250  (Ā·B·C:  inputs at y=215,250,280)
-  AND3 center:  x=375, y=365  (A·B·C:  inputs at y=335,360,385)
-  OR center:    x=570, y=250  (inputs at y=155,250,340)
-  Output F:     x=690, y=250
--->
-<svg class="circuit-svg" viewBox="0 0 820 500" xmlns="http://www.w3.org/2000/svg">
+                <!-- 1. ENTRADAS (Aumentadas) -->
+                ${['A', 'B', 'C'].map((label, i) => {
+                    const y = 100 + (i * 180);
+                    const val = state[label];
+                    return `
+                        <text x="30" y="${y+8}" class="fill-slate-800 font-black text-2xl">${label}</text>
+                        <path d="M 70 ${y} L 150 ${y}" class="wire ${val ? 'high' : 'low'}" />
+                        <text x="110" y="${y-10}" class="status-bubble ${val ? 'bubble-high' : 'bubble-low'}">${val}</text>
+                    `;
+                }).join('')}
 
-  <!-- ── INPUT LABELS ── -->
-  <text x="30" y="80"  font-family="Orbitron" font-size="17" font-weight="900" fill="#00b4ff" text-anchor="middle">A</text>
-  <text x="30" y="200" font-family="Orbitron" font-size="17" font-weight="900" fill="#ff4466" text-anchor="middle">B</text>
-  <text x="30" y="330" font-family="Orbitron" font-size="17" font-weight="900" fill="#00e676" text-anchor="middle">C</text>
+                <!-- 2. INVERSORES (NOT) -->
+                <!-- NOT A -->
+                <use href="#gate-not" x="150" y="75" width="60" height="50" />
+                <text x="160" y="70" class="gate-text italic">INV_A</text>
+                <path d="M 210 100 L 280 100" class="wire ${res.invA ? 'high' : 'low'}" />
+                <text x="240" y="90" class="status-bubble ${res.invA ? 'bubble-high' : 'bubble-low'}">${res.invA}</text>
 
-  <!-- Input value boxes -->
-  <rect id="bxA" x="42" y="65" width="26" height="20" rx="3" fill="#071828" stroke="#0a3050" stroke-width="1.5"/>
-  <text id="svA" class="vl off" x="55" y="79">0</text>
-  <rect id="bxB" x="42" y="185" width="26" height="20" rx="3" fill="#1c0810" stroke="#500020" stroke-width="1.5"/>
-  <text id="svB" class="vl off" x="55" y="199">0</text>
-  <rect id="bxC" x="42" y="315" width="26" height="20" rx="3" fill="#061a0e" stroke="#0a4020" stroke-width="1.5"/>
-  <text id="svC" class="vl off" x="55" y="329">0</text>
+                <!-- NOT B -->
+                <use href="#gate-not" x="150" y="255" width="60" height="50" />
+                <text x="160" y="250" class="gate-text italic">INV_B</text>
+                <path d="M 210 280 L 280 280" class="wire ${res.invB ? 'high' : 'low'}" />
+                <text x="240" y="270" class="status-bubble ${res.invB ? 'bubble-high' : 'bubble-low'}">${res.invB}</text>
 
-  <!-- ══════════ WIRES ══════════
-    All paths are orthogonal: right-angle corners only
-  -->
+                <!-- 3. COMPUERTAS AND (Términos) -->
+                <!-- AND T1 (-A*-B*C) -->
+                <use href="#gate-and" x="350" y="150" width="80" height="60" />
+                <text x="360" y="145" class="gate-text">AND_T1</text>
+                
+                <!-- Conexiones a AND T1 -->
+                <path d="M 280 100 L 320 100 L 320 170 L 350 170" class="wire ${res.invA ? 'high' : 'low'}" />
+                <path d="M 280 280 L 320 280 L 320 190 L 350 190" class="wire ${res.invB ? 'high' : 'low'}" />
+                <path d="M 70 460 L 330 460 L 330 205 L 350 205" class="wire ${C ? 'high' : 'low'}" />
+                
+                <!-- Salida AND T1 -->
+                <path d="M 430 180 L 520 180 L 520 270 L 550 270" class="wire ${res.t1 ? 'high' : 'low'}" />
+                <text x="470" y="170" class="status-bubble ${res.t1 ? 'bubble-high' : 'bubble-low'}">${res.t1 ? 1 : 0}</text>
 
-  <!-- A → NOT gate (horizontal) -->
-  <polyline id="wA_not" class="w wA off" points="68,75 115,75"/>
-  <!-- A bus vertical tap for AND3 -->
-  <polyline id="wA_bus" class="w wA off" points="80,75 80,340"/>
-  <polyline id="wA_and3t" class="w wA off" points="80,340 310,340"/>
+                <!-- 4. OR FINAL -->
+                <use href="#gate-or" x="550" y="250" width="100" height="80" />
+                <text x="560" y="245" class="gate-text" fill="#2563eb">SUM_STAGE</text>
+                
+                <!-- Salida Final -->
+                <path d="M 650 290 L 720 290" class="wire ${res.f ? 'high' : 'low'}" />
+                <circle cx="740" cy="290" r="15" fill="${res.f ? '#ef4444' : '#2563eb'}" stroke="#fff" stroke-width="4" />
+                <text x="740" y="297" text-anchor="middle" fill="#fff" font-weight="black" font-size="20">${res.f}</text>
+            `;
+        }
 
-  <!-- NOT A gate: triangle+circle at x=115-160, y=75 -->
-  <polygon id="notA_body" class="gb gNA off" points="115,63 155,75 115,87"/>
-  <circle   id="notA_dot" class="nc ncA off" cx="160" cy="75" r="6"/>
-  <text x="135" y="99" class="gt">NOT</text>
-  <!-- NOT A output wire -->
-  <polyline id="wNA_h" class="w wNA off" points="166,75 215,75"/>
-  <!-- NOT A → AND1 top input -->
-  <polyline id="wNA_and1" class="w wNA off" points="215,75 215,95 310,95"/>
-  <!-- NOT A → AND2 top input -->
-  <polyline id="wNA_and2" class="w wNA off" points="215,75 215,215 310,215"/>
-  <!-- Junction dot on NOT A bus -->
-  <circle id="jNA" class="sd sdNA off" cx="215" cy="75" r="4"/>
+        function renderTable() {
+            const body = document.getElementById('truth-table-body');
+            body.innerHTML = '';
+            for (let i = 0; i < 8; i++) {
+                const a = (i & 4) ? 1 : 0;
+                const b = (i & 2) ? 1 : 0;
+                const c = (i & 1) ? 1 : 0;
+                
+                const f = ((!a && !b && c) || (!a && b && c) || (a && b && c)) ? 1 : 0;
+                const isCurrent = (a === state.A && b === state.B && c === state.C);
+                
+                body.innerHTML += `
+                    <tr class="${isCurrent ? 'bg-yellow-400 text-black font-black' : 'hover:bg-white/5'} transition-colors border-b border-white/5">
+                        <td class="p-3">${a}</td>
+                        <td class="p-3">${b}</td>
+                        <td class="p-3">${c}</td>
+                        <td class="p-3 ${isCurrent ? 'bg-black text-yellow-400' : 'text-blue-400 font-bold'}">${f}</td>
+                    </tr>
+                `;
+            }
+        }
 
-  <!-- B → NOT gate -->
-  <polyline id="wB_not" class="w wB off" points="68,195 115,195"/>
-  <!-- B bus vertical for AND2 mid + AND3 mid -->
-  <polyline id="wB_bus"  class="w wB off" points="88,195 88,365"/>
-  <polyline id="wB_and2" class="w wB off" points="88,250 310,250"/>
-  <polyline id="wB_and3" class="w wB off" points="88,365 310,365"/>
-  <circle id="jB"  class="sd sdB off" cx="88" cy="195" r="4"/>
-  <circle id="jB2" class="sd sdB off" cx="88" cy="250" r="4"/>
+        function update() {
+            const res = calculateLogic();
+            
+            // UI Inferior
+            const outTxt = document.getElementById('display-f');
+            outTxt.innerText = res.f;
+            outTxt.className = `text-7xl font-black transition-all duration-300 ${res.f ? 'text-red-500 scale-110 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'text-blue-500'}`;
+            
+            document.getElementById('led-f').className = `w-12 h-12 rounded-full border-4 border-white/20 transition-all duration-300 ${res.f ? 'bg-red-500 shadow-[0_0_20px_#ef4444]' : 'bg-blue-900'}`;
 
-  <!-- NOT B gate -->
-  <polygon id="notB_body" class="gb gNB off" points="115,183 155,195 115,207"/>
-  <circle   id="notB_dot" class="nc ncB off" cx="160" cy="195" r="6"/>
-  <text x="135" y="219" class="gt">NOT</text>
-  <!-- NOT B output -->
-  <polyline id="wNB_h"    class="w wNB off" points="166,195 235,195"/>
-  <!-- NOT B → AND1 mid input -->
-  <polyline id="wNB_and1" class="w wNB off" points="235,195 235,130 310,130"/>
-  <circle id="jNB" class="sd sdNB off" cx="235" cy="195" r="4"/>
+            drawSchematic();
+            renderTable();
+        }
 
-  <!-- C main horizontal + bus vertical -->
-  <polyline id="wC_main" class="w wC off" points="68,325 98,325"/>
-  <polyline id="wC_bus"  class="w wC off" points="98,165 98,325"/>
-  <!-- C → AND1 bottom -->
-  <polyline id="wC_and1" class="w wC off" points="98,165 310,165"/>
-  <!-- C → AND2 bottom -->
-  <polyline id="wC_and2" class="w wC off" points="98,280 310,280"/>
-  <!-- C → AND3 bottom -->
-  <polyline id="wC_and3" class="w wC off" points="98,325 310,385"/>
-  <circle id="jC"  class="sd sdC off" cx="98" cy="325" r="4"/>
-  <circle id="jC2" class="sd sdC off" cx="98" cy="165" r="4"/>
-  <circle id="jC3" class="sd sdC off" cx="98" cy="280" r="4"/>
-
-  <!-- NOT A/B value labels -->
-  <rect x="168" y="64"  width="22" height="16" rx="3" fill="#100c28" stroke="#2a2050" stroke-width="1"/>
-  <text id="svNA" class="vl off" x="179" y="76">1</text>
-  <rect x="168" y="184" width="22" height="16" rx="3" fill="#1e1000" stroke="#402000" stroke-width="1"/>
-  <text id="svNB" class="vl off" x="179" y="196">1</text>
-
-  <!-- Bus signal labels -->
-  <text id="lbA"  x="90"  y="62"  class="gt2">A</text>
-  <text id="lbB"  x="98"  y="182" class="gt2">B</text>
-  <text id="lbC"  x="108" y="311" class="gt2">C</text>
-  <text id="lbNA" x="225" y="62"  class="gt2">Ā</text>
-  <text id="lbNB" x="245" y="182" class="gt2">B̄</text>
-
-  <!-- ══ AND GATE 1 — Ā·B̄·C  inputs at y=95,130,165 ══ -->
-  <path id="and1_body" class="gb gT1 off"
-    d="M310,83 L345,83 Q390,83 390,130 Q390,177 345,177 L310,177 Z"/>
-  <text x="352" y="191" class="gt">AND₁</text>
-  <text x="352" y="201" class="gt2">Ā·B̄·C</text>
-  <!-- AND1 output → right then to OR top -->
-  <polyline id="wT1" class="w wT1 off" points="390,130 445,130 445,175 510,175"/>
-  <circle id="sdT1" class="sd sdT1 off" cx="440" cy="130" r="5"/>
-  <rect id="bxT1" x="393" y="120" width="22" height="16" rx="3" fill="#050d18" stroke="#1a2840" stroke-width="1"/>
-  <text id="svT1" class="vl off" x="404" y="132">0</text>
-
-  <!-- ══ AND GATE 2 — Ā·B·C  inputs at y=215,250,280 ══ -->
-  <path id="and2_body" class="gb gT2 off"
-    d="M310,203 L345,203 Q390,203 390,250 Q390,297 345,297 L310,297 Z"/>
-  <text x="352" y="311" class="gt">AND₂</text>
-  <text x="352" y="321" class="gt2">Ā·B·C</text>
-  <!-- AND2 output → right to OR mid -->
-  <polyline id="wT2" class="w wT2 off" points="390,250 510,250"/>
-  <circle id="sdT2" class="sd sdT2 off" cx="450" cy="250" r="5"/>
-  <rect id="bxT2" x="393" y="240" width="22" height="16" rx="3" fill="#050d18" stroke="#1a2840" stroke-width="1"/>
-  <text id="svT2" class="vl off" x="404" y="252">0</text>
-
-  <!-- ══ AND GATE 3 — A·B·C  inputs at y=340,365,385 ══ -->
-  <path id="and3_body" class="gb gT3 off"
-    d="M310,328 L345,328 Q390,328 390,362 Q390,396 345,396 L310,396 Z"/>
-  <text x="352" y="410" class="gt">AND₃</text>
-  <text x="352" y="420" class="gt2">A·B·C</text>
-  <!-- AND3 output → right then up to OR bottom -->
-  <polyline id="wT3" class="w wT3 off" points="390,362 445,362 445,325 510,325"/>
-  <circle id="sdT3" class="sd sdT3 off" cx="440" cy="362" r="5"/>
-  <rect id="bxT3" x="393" y="352" width="22" height="16" rx="3" fill="#050d18" stroke="#1a2840" stroke-width="1"/>
-  <text id="svT3" class="vl off" x="404" y="364">0</text>
-
-  <!-- ══ 3-input OR gate  inputs: y=175,250,325 → output x=590,y=250 ══ -->
-  <path id="or_body" class="gb gOR off"
-    d="M510,163 Q532,163 550,180 Q574,205 576,250
-       Q574,295 550,320 Q532,337 510,337
-       Q524,310 524,250 Q524,190 510,163 Z"/>
-  <text x="548" y="352" class="gt">OR</text>
-  <text x="548" y="362" class="gt2">FINAL</text>
-
-  <!-- OR output → F -->
-  <polyline id="wF" class="w wF off" points="576,250 690,250"/>
-  <circle id="sdF" class="sd sdF off" cx="640" cy="250" r="7"/>
-
-  <!-- F output -->
-  <text id="outLabelF" x="718" y="244" font-family="Orbitron" font-size="20" font-weight="900" fill="#3a4a6a" text-anchor="middle">F</text>
-  <rect id="bxF" x="704" y="252" width="28" height="18" rx="4" fill="#0a0e18" stroke="#253050" stroke-width="1.5"/>
-  <text id="svF" class="vl off" x="718" y="265">0</text>
-
-  <!-- Junction dots (A bus, B bus) -->
-  <circle id="jA"  class="sd sdA  off" cx="80" cy="75"  r="4"/>
-
-</svg>
-</div>
-
-<!-- RIGHT: TRUTH TABLE -->
-<div class="panel">
-  <div class="panel-title">Tabla de Verdad</div>
-  <table class="tt">
-    <thead>
-      <tr><th>A</th><th>B</th><th>C</th><th>T₁</th><th>T₂</th><th>T₃</th><th>F</th></tr>
-    </thead>
-    <tbody id="tbody"></tbody>
-  </table>
-  <div class="canon">
-    <b>EXPRESIÓN CANÓNICA</b>
-    F = Σm(1,3,7)<br>
-    T₁=Ā·B̄·C &nbsp; T₂=Ā·B·C &nbsp; T₃=A·B·C
-  </div>
-</div>
-
-</div><!-- /layout -->
-
-<script>
-// Build truth table
-const tbody = document.getElementById('tbody');
-for(let a=0;a<2;a++) for(let b=0;b<2;b++) for(let c=0;c<2;c++){
-  const nA=1-a,nB=1-b;
-  const t1=nA&nB&c, t2=nA&b&c, t3=a&b&c, f=t1|t2|t3;
-  const tr=document.createElement('tr');
-  tr.id=`r${a}${b}${c}`;
-  tr.innerHTML=`<td>${a}</td><td>${b}</td><td>${c}</td><td>${t1}</td><td>${t2}</td><td>${t3}</td><td class="${f?'':'z'}">${f}</td>`;
-  tbody.appendChild(tr);
-}
-
-const $ = id => document.getElementById(id);
-
-function wire(id, on){
-  const el=$(id); if(!el) return;
-  el.classList.toggle('on',!!on); el.classList.toggle('off',!on);
-}
-function dot(id, on){
-  const el=$(id); if(!el) return;
-  el.classList.toggle('on',!!on); el.classList.toggle('off',!on);
-}
-function gate(id, on){
-  const el=$(id); if(!el) return;
-  el.classList.toggle('on',!!on); el.classList.toggle('off',!on);
-}
-function vl(id, val, on){
-  const el=$(id); if(!el) return;
-  el.textContent=val;
-  el.classList.toggle('on',!!on); el.classList.toggle('off',!on);
-}
-function bxStroke(id, col){
-  const el=$(id); if(el) el.setAttribute('stroke',col);
-}
-
-function update(){
-  const A=$('swA').checked?1:0;
-  const B=$('swB').checked?1:0;
-  const C=$('swC').checked?1:0;
-  const nA=1-A, nB=1-B;
-  const T1=nA&nB&C, T2=nA&B&C, T3=A&B&C, F=T1|T2|T3;
-
-  // Switch badges
-  [['valA',A,'sa'],['valB',B,'sb'],['valC',C,'sc']].forEach(([id,v])=>{
-    const el=$(id); el.textContent=v; el.className='sv '+(v?'on':'off');
-  });
-
-  // Box strokes
-  bxStroke('bxA', A?'#00b4ff':'#0a3050');
-  bxStroke('bxB', B?'#ff4466':'#500020');
-  bxStroke('bxC', C?'#00e676':'#0a4020');
-  bxStroke('bxT1',T1?'#00e5ff':'#1a2840');
-  bxStroke('bxT2',T2?'#ff6ec7':'#1a2840');
-  bxStroke('bxT3',T3?'#69ff47':'#1a2840');
-  bxStroke('bxF', F ?'#ffd740':'#253050');
-
-  // Neg pills
-  [['negA',A,'Ā'],['negB',B,'B̄']].forEach(([id,sig,lbl])=>{
-    const el=$(id);
-    el.textContent=lbl+'='+(1-sig);
-    el.classList.toggle('lit',!sig);
-  });
-
-  // SVG values
-  vl('svA',A,A); vl('svB',B,B); vl('svC',C,C);
-  vl('svNA',nA,nA); vl('svNB',nB,nB);
-  vl('svT1',T1,T1); vl('svT2',T2,T2); vl('svT3',T3,T3);
-  vl('svF',F,F);
-
-  // Wires — A
-  wire('wA_not',A); wire('wA_bus',A); wire('wA_and3t',A);
-  dot('jA',A);
-
-  // NOT A
-  gate('notA_body',nA); gate('notA_dot',nA);
-  wire('wNA_h',nA); wire('wNA_and1',nA); wire('wNA_and2',nA);
-  dot('jNA',nA);
-
-  // Wires — B
-  wire('wB_not',B); wire('wB_bus',B); wire('wB_and2',B); wire('wB_and3',B);
-  dot('jB',B); dot('jB2',B);
-
-  // NOT B
-  gate('notB_body',nB); gate('notB_dot',nB);
-  wire('wNB_h',nB); wire('wNB_and1',nB);
-  dot('jNB',nB);
-
-  // Wires — C
-  wire('wC_main',C); wire('wC_bus',C); wire('wC_and1',C); wire('wC_and2',C); wire('wC_and3',C);
-  dot('jC',C); dot('jC2',C); dot('jC3',C);
-
-  // AND gates
-  gate('and1_body',T1); wire('wT1',T1); dot('sdT1',T1);
-  gate('and2_body',T2); wire('wT2',T2); dot('sdT2',T2);
-  gate('and3_body',T3); wire('wT3',T3); dot('sdT3',T3);
-
-  // OR + output
-  gate('or_body',F); wire('wF',F); dot('sdF',F);
-
-  // F label
-  const fl=$('outLabelF');
-  fl.setAttribute('fill', F?'#ffd740':'#3a4a6a');
-  if(F) fl.setAttribute('filter','drop-shadow(0 0 7px #ffd740)');
-  else fl.removeAttribute('filter');
-
-  // Bus label colors
-  const lc=(id,c)=>{ const el=$(id); if(el) el.setAttribute('fill',c); };
-  lc('lbA',  A  ? '#00b4ff':'#0a3050');
-  lc('lbB',  B  ? '#ff4466':'#2a0815');
-  lc('lbC',  C  ? '#00e676':'#063018');
-  lc('lbNA', nA ? '#7b61ff':'#1a1040');
-  lc('lbNB', nB ? '#ff9933':'#2a1a00');
-
-  // Big output
-  const ob=$('outBig');
-  ob.textContent=F; ob.className='probe-val '+(F?'one':'zero');
-  ob.classList.add(F?'pg':'pr');
-  setTimeout(()=>ob.classList.remove('pg','pr'),600);
-
-  $('outDesc').textContent = T1?'✓ Mintérmino Ā·B̄·C activo':T2?'✓ Mintérmino Ā·B·C activo':T3?'✓ Mintérmino A·B·C activo':'Ningún mintérmino activo → F=0';
-
-  // Minterms
-  [[T1,'m0','m0v'],[T2,'m1','m1v'],[T3,'m2','m2v']].forEach(([v,mid,vid])=>{
-    $(mid).classList.toggle('on',!!v);
-    $(vid).textContent=v?'= 1':'= 0';
-  });
-
-  // Table
-  document.querySelectorAll('#tbody tr').forEach(r=>r.classList.remove('hl'));
-  const row=$(`r${A}${B}${C}`);
-  if(row){ row.classList.add('hl'); row.scrollIntoView({block:'nearest'}); }
-}
-
-update();
-</script>
+        // Inicio
+        update();
+    </script>
 </body>
 </html>
